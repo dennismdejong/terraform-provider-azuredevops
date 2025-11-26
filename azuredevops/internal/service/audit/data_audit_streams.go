@@ -13,7 +13,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/service/audit/utils"
 )
 
-func DataResourceAuditStreams() *schema.Resource {
+func DataAuditStreams() *schema.Resource {
 	return &schema.Resource{
 		ReadContext: dataResourceAuditStreamsRead,
 		Timeouts: &schema.ResourceTimeout{

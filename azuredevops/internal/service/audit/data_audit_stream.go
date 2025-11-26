@@ -14,7 +14,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 )
 
-func DataResourceAuditStream() *schema.Resource {
+func DataAuditStream() *schema.Resource {
 	return &schema.Resource{
 		ReadContext: dataResourceAuditStreamRead,
 		Timeouts: &schema.ResourceTimeout{
