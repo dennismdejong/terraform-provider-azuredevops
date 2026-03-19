@@ -81,6 +81,7 @@ func Provider() *schema.Provider {
 			"azuredevops_iteration_permissions":                       permissions.ResourceIterationPermissions(),
 			"azuredevops_library_permissions":                         permissions.ResourceLibraryPermissions(),
 			"azuredevops_pipeline_authorization":                      build.ResourcePipelineAuthorization(),
+			"azuredevops_pipeline_run":                                build.ResourcePipelineRun(),
 			"azuredevops_project":                                     core.ResourceProject(),
 			"azuredevops_project_features":                            core.ResourceProjectFeatures(),
 			"azuredevops_project_permissions":                         permissions.ResourceProjectPermissions(),
