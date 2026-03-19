@@ -21,14 +21,14 @@ resource "azuredevops_project" "example" {
 }
 
 resource "azuredevops_serviceendpoint_powerplatform" "example" {
-  project_id            = data.azuredevops_project.project.id
+  project_id            = azuredevops_project.example.id
   service_endpoint_name = "PowerPlaform-connection"
   description           = "Managed by Terraform"
   url                   = "https://dev-environment.crm11.dynamics.com/"
   credentials {
     serviceprincipalid  = "00000000-0000-0000-0000-000000000000"
     serviceprincipalkey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    tenantId            = "00000000-0000-0000-0000-000000000000"
+    tenant_id           = "00000000-0000-0000-0000-000000000000"
   }
 }
 ```
@@ -43,7 +43,7 @@ The following arguments are supported:
 
 ---
 
-* `credentials` - (Optional) A `credentials` block as defined below.
+* `credentials` - (Required) A `credentials` block as defined below.
 * `description` - (Optional) Service connection description.
 
 ---
@@ -52,7 +52,7 @@ A `credentials` block supports the following:
 
 * `serviceprincipalid` - (Required) The service principal application ID.
 * `serviceprincipalkey` - (Required) The service principal application key.
-* `tenantId` - (Required) The service principal tenant id.
+* `tenant_id` - (Required) The service principal tenant id.
 
 ## Attributes Reference
 

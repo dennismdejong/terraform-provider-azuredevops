@@ -41,7 +41,7 @@ func ResourceServiceEndpointPowerPlatform() *schema.Resource {
 		},
 		"credentials": {
 			Type:     schema.TypeList,
-			Optional: true,
+			Required: true,
 			MaxItems: 1,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
@@ -58,11 +58,26 @@ func ResourceServiceEndpointPowerPlatform() *schema.Resource {
 						Description:  "The Client Secret of the Service Principal.",
 						ValidateFunc: validation.StringIsNotEmpty,
 					},
-					"tenantId": {
+					"tenant_id": {
 						Type:         schema.TypeString,
 						Required:     true,
 						Description:  "The Tenant ID.",
 						ValidateFunc: validation.IsUUID,
+					},
+				},
+			},
+		},
+		"features": {
+			Type:     schema.TypeList,
+			Optional: true,
+			MaxItems: 1,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"validate": {
+						Type:        schema.TypeBool,
+						Optional:    true,
+						Default:     false,
+						Description: "Whether or not to validate connection with Azure after create or update operations.",
 					},
 				},
 			},
@@ -85,6 +100,21 @@ func resourceServiceEndpointPowerPlatformCreate(ctx context.Context, d *schema.R
 	}
 
 	d.SetId(resp.Id.String())
+
+	if v, ok := d.GetOk("features"); ok {
+		features := v.([]interface{})[0].(map[string]interface{})
+		if features["validate"].(bool) {
+			projectID := d.Get("project_id").(string)
+			err = validateServiceEndpoint(clients, resp, projectID, 60*time.Second)
+			if err != nil {
+				if delErr := deleteServiceEndpoint(clients, resp, d.Timeout(schema.TimeoutDelete)); delErr != nil {
+					return diag.Errorf("Error validating service endpoint and failed to delete it: %+v", err)
+				}
+				return diag.Errorf("Error validating service endpoint: %+v", err)
+			}
+		}
+	}
+
 	return resourceServiceEndpointPowerPlatformRead(clients.Ctx, d, m)
 }
 
@@ -114,9 +144,20 @@ func resourceServiceEndpointPowerPlatformUpdate(ctx context.Context, d *schema.R
 		return diag.Errorf(errMsgTfConfigRead, err)
 	}
 
-	_, err = updateServiceEndpoint(clients, serviceEndpoint)
+	resp, err := updateServiceEndpoint(clients, serviceEndpoint)
 	if err != nil {
 		return diag.Errorf("updating service endpoint in Azure DevOps: %+v", err)
+	}
+
+	if v, ok := d.GetOk("features"); ok {
+		features := v.([]interface{})[0].(map[string]interface{})
+		if features["validate"].(bool) {
+			projectID := d.Get("project_id").(string)
+			err = validateServiceEndpoint(clients, resp, projectID, 60*time.Second)
+			if err != nil {
+				return diag.Errorf("Error validating service endpoint: %+v", err)
+			}
+		}
 	}
 
 	return resourceServiceEndpointPowerPlatformRead(clients.Ctx, d, m)
@@ -155,7 +196,7 @@ func expandServiceEndpointPowerPlatform(d *schema.ResourceData) (*serviceendpoin
 	}
 
 	parameters := map[string]string{
-		"tenantId":      credentials["tenantId"].(string),
+		"tenantId":      credentials["tenant_id"].(string),
 		"applicationId": credentials["serviceprincipalid"].(string),
 		"clientSecret":  credentials["serviceprincipalkey"].(string),
 	}
@@ -179,7 +220,7 @@ func flattenServiceEndpointPowerPlatform(d *schema.ResourceData, serviceEndpoint
 		params := *serviceEndpoint.Authorization.Parameters
 
 		if v, ok := params["tenantId"]; ok {
-			credentials["tenantId"] = v
+			credentials["tenant_id"] = v
 		}
 
 		if v, ok := params["applicationId"]; ok {

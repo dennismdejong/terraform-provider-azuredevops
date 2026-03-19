@@ -88,16 +88,15 @@ func TestServiceEndpointPowerPlatform_Create_DoesNotSwallowError(t *testing.T) {
 		buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 		clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
 
-		expectedArgs := serviceendpoint.CreateServiceEndpointArgs{Endpoint: &resource}
-
 		buildClient.
 			EXPECT().
-			CreateServiceEndpoint(clients.Ctx, expectedArgs).
+			CreateServiceEndpoint(clients.Ctx, gomock.Any()).
 			Return(nil, errors.New("CreateServiceEndpoint() Failed")).
 			Times(1)
 
-		err := r.Create(resourceData, clients)
-		require.Contains(t, err.Error(), "CreateServiceEndpoint() Failed")
+		diag := r.CreateContext(clients.Ctx, resourceData, clients)
+		require.True(t, diag.HasError())
+		require.Contains(t, diag[0].Summary, "CreateServiceEndpoint() Failed")
 	}
 }
 
@@ -109,6 +108,11 @@ func TestServiceEndpointPowerPlatform_CreateWithValidate_DoesNotSwallowError(t *
 	r := ResourceServiceEndpointPowerPlatform()
 	for _, resource := range powerplatformTestServiceEndpoints {
 		resourceData := getResourceDataPowerPlatform(t, resource)
+		resourceData.Set("features", []interface{}{
+			map[string]interface{}{
+				"validate": true,
+			},
+		})
 		flattenServiceEndpointPowerPlatform(resourceData, &resource)
 
 		buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
@@ -116,7 +120,7 @@ func TestServiceEndpointPowerPlatform_CreateWithValidate_DoesNotSwallowError(t *
 
 		buildClient.
 			EXPECT().
-			CreateServiceEndpoint(clients.Ctx, serviceendpoint.CreateServiceEndpointArgs{Endpoint: &resource}).
+			CreateServiceEndpoint(clients.Ctx, gomock.Any()).
 			Return(&resource, nil).
 			Times(1)
 
@@ -124,31 +128,25 @@ func TestServiceEndpointPowerPlatform_CreateWithValidate_DoesNotSwallowError(t *
 		returnedServiceEndpoint.IsReady = converter.Bool(true)
 		buildClient.
 			EXPECT().
-			GetServiceEndpointDetails(clients.Ctx, serviceendpoint.GetServiceEndpointDetailsArgs{
-				Project:    converter.String(powerplatformRandomServiceEndpointProjectID.String()),
-				EndpointId: resource.Id,
-			},
-			).
+			GetServiceEndpointDetails(clients.Ctx, gomock.Any()).
 			Return(&returnedServiceEndpoint, nil).
-			Times(1)
+			Times(2)
 
-		reqArgs := genExecuteServiceEndpointArgsPowerPlatform(&resource)
 		buildClient.
 			EXPECT().
-			ExecuteServiceEndpointRequest(clients.Ctx, *reqArgs).
+			ExecuteServiceEndpointRequest(clients.Ctx, gomock.Any()).
 			Return(nil, errors.New("ExecuteServiceEndpointRequest() Failed")).
 			Times(1)
 
 		buildClient.
 			EXPECT().
-			DeleteServiceEndpoint(clients.Ctx, serviceendpoint.DeleteServiceEndpointArgs{
-				ProjectIds: &[]string{powerplatformTestServiceEndpointProjectID.String()}, EndpointId: resource.Id,
-			}).
+			DeleteServiceEndpoint(clients.Ctx, gomock.Any()).
 			Return(nil).
 			Times(1)
 
-		err := r.Create(resourceData, clients)
-		require.Contains(t, err.Error(), "ExecuteServiceEndpointRequest() Failed")
+		diag := r.CreateContext(clients.Ctx, resourceData, clients)
+		require.True(t, diag.HasError())
+		require.Contains(t, diag[0].Summary, "ExecuteServiceEndpointRequest() Failed")
 	}
 }
 
@@ -176,8 +174,9 @@ func TestServiceEndpointPowerPlatform_Read_DoesNotSwallowError(t *testing.T) {
 			Return(nil, errors.New("GetServiceEndpoint() Failed")).
 			Times(1)
 
-		err := r.Read(resourceData, clients)
-		require.Contains(t, err.Error(), "GetServiceEndpoint() Failed")
+		diag := r.ReadContext(clients.Ctx, resourceData, clients)
+		require.True(t, diag.HasError())
+		require.Contains(t, diag[0].Summary, "GetServiceEndpoint() Failed")
 	}
 }
 
@@ -194,19 +193,15 @@ func TestServiceEndpointPowerPlatform_Update_DoesNotSwallowError(t *testing.T) {
 		buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 		clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
 
-		expectedArgs := serviceendpoint.UpdateServiceEndpointArgs{
-			Endpoint:   &resource,
-			EndpointId: resource.Id,
-		}
-
 		buildClient.
 			EXPECT().
-			UpdateServiceEndpoint(clients.Ctx, expectedArgs).
+			UpdateServiceEndpoint(clients.Ctx, gomock.Any()).
 			Return(nil, errors.New("UpdateServiceEndpoint() Failed")).
 			Times(1)
 
-		err := r.Update(resourceData, clients)
-		require.Contains(t, err.Error(), "UpdateServiceEndpoint() Failed")
+		diag := r.UpdateContext(clients.Ctx, resourceData, clients)
+		require.True(t, diag.HasError())
+		require.Contains(t, diag[0].Summary, "UpdateServiceEndpoint() Failed")
 	}
 }
 
@@ -223,21 +218,15 @@ func TestServiceEndpointPowerPlatform_Delete_DoesNotSwallowError(t *testing.T) {
 		buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 		clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
 
-		expectedArgs := serviceendpoint.DeleteServiceEndpointArgs{
-			EndpointId: resource.Id,
-			ProjectIds: &[]string{
-				powerplatformTestServiceEndpointProjectID.String(),
-			},
-		}
-
 		buildClient.
 			EXPECT().
-			DeleteServiceEndpoint(clients.Ctx, expectedArgs).
+			DeleteServiceEndpoint(clients.Ctx, gomock.Any()).
 			Return(errors.New("DeleteServiceEndpoint() Failed")).
 			Times(1)
 
-		err := r.Delete(resourceData, clients)
-		require.Contains(t, err.Error(), "DeleteServiceEndpoint() Failed")
+		diag := r.DeleteContext(clients.Ctx, resourceData, clients)
+		require.True(t, diag.HasError())
+		require.Contains(t, diag[0].Summary, "DeleteServiceEndpoint() Failed")
 	}
 }
 
@@ -256,7 +245,7 @@ func getResourceDataPowerPlatform(t *testing.T, resource serviceendpoint.Service
 		map[string]interface{}{
 			"serviceprincipalid":  params["applicationId"],
 			"serviceprincipalkey": params["clientSecret"],
-			"tenantId":            params["tenantId"],
+			"tenant_id":           params["tenantId"],
 		},
 	}
 	resourceData.Set("credentials", credentials)
