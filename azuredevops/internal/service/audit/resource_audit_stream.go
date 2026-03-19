@@ -33,6 +33,7 @@ func ResourceAuditStream() *schema.Resource {
 		Schema: streamutils.ResourceAuditStreamSchema(map[string]*schema.Schema{}),
 	}
 }
+
 func resourceAuditStreamCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	clients := m.(*client.AggregatedClient)
 
@@ -43,7 +44,6 @@ func resourceAuditStreamCreate(ctx context.Context, d *schema.ResourceData, m in
 	}
 
 	createdStream, err := clients.AuditClient.CreateStream(clients.Ctx, createPayload)
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -66,7 +66,6 @@ func resourceAuditStreamRead(ctx context.Context, d *schema.ResourceData, m inte
 	stream, err := clients.AuditClient.QueryStreamById(clients.Ctx, audit.QueryStreamByIdArgs{
 		StreamId: &streamID,
 	})
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -109,7 +108,6 @@ func resourceAuditStreamDelete(ctx context.Context, d *schema.ResourceData, m in
 	err = clients.AuditClient.DeleteStream(clients.Ctx, audit.DeleteStreamArgs{
 		StreamId: &streamID,
 	})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 
