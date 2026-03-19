@@ -528,7 +528,7 @@ func flattenServiceEndpointProjectReferences(references *[]serviceendpoint.Servi
 			if id := ref.Id; id != nil {
 				pRef["id"] = id.String()
 			}
-			if name: ref.Name; name != nil {
+			if name := ref.Name; name != nil {
 				pRef["name"] = *name
 			}
 			item["project_reference"] = []interface{}{pRef}

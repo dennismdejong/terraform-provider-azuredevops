@@ -83,22 +83,19 @@ func TestServiceEndpointProjectPermissions_Create_AppendsReference(t *testing.T)
 	// 2. Expect Update
 	buildClient.
 		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, args serviceendpoint.UpdateServiceEndpointArgs) (*serviceendpoint.ServiceEndpoint, error) {
+		ShareServiceEndpoint(clients.Ctx, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, args serviceendpoint.ShareServiceEndpointArgs) error {
 			// Validate Values manually
 			require.Equal(t, permissionsTestEndpointID, *args.EndpointId, "EndpointID mismatch in Update")
 
-			refs := *args.Endpoint.ServiceEndpointProjectReferences
-			require.Len(t, refs, 2, "Should have Owner + New Share")
+			refs := *args.EndpointProjectReferences
+			require.Len(t, refs, 1, "Should have New Share")
 
-			// Verify Owner is still index 0
-			require.Equal(t, permissionsTestOwnerProjectID.String(), refs[0].ProjectReference.Id.String())
+			// Verify New Share is index 0
+			require.Equal(t, permissionsTestTargetID1.String(), refs[0].ProjectReference.Id.String())
+			require.Equal(t, "SHARED_NAME", *refs[0].Name)
 
-			// Verify New Share is index 1
-			require.Equal(t, permissionsTestTargetID1.String(), refs[1].ProjectReference.Id.String())
-			require.Equal(t, "SHARED_NAME", *refs[1].Name)
-
-			return args.Endpoint, nil
+			return nil
 		}).
 		Times(1)
 
@@ -152,13 +149,12 @@ func TestServiceEndpointProjectPermissions_Delete_RemovesOnlyTarget(t *testing.T
 	// 2. Expect Update
 	buildClient.
 		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, args serviceendpoint.UpdateServiceEndpointArgs) (*serviceendpoint.ServiceEndpoint, error) {
-			refs := *args.Endpoint.ServiceEndpointProjectReferences
-			require.Len(t, refs, 1, "Should only have Owner left")
-			require.Equal(t, permissionsTestOwnerProjectID.String(), refs[0].ProjectReference.Id.String())
+		DeleteServiceEndpoint(clients.Ctx, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, args serviceendpoint.DeleteServiceEndpointArgs) error {
+			require.Len(t, *args.ProjectIds, 1, "Should only delete 1 project")
+			require.Equal(t, permissionsTestTargetID1.String(), (*args.ProjectIds)[0])
 
-			return args.Endpoint, nil
+			return nil
 		}).
 		Times(1)
 
@@ -167,7 +163,7 @@ func TestServiceEndpointProjectPermissions_Delete_RemovesOnlyTarget(t *testing.T
 }
 
 // Test: Read filters correctly
-func TestServiceEndpointProjectPermissions_Read_FiltersExpectedProjects(t *testing.T) {
+func TestServiceEndpointProjectPermissions_Read_TracksAllSharedProjects(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -201,13 +197,16 @@ func TestServiceEndpointProjectPermissions_Read_FiltersExpectedProjects(t *testi
 	err := r.ReadContext(clients.Ctx, resourceData, clients)
 	require.Nil(t, err)
 
-	// Verify that the state only contains Target1, not Owner and not Target2
-	resultSet := resourceData.Get("project_reference").(*schema.Set)
-	require.Equal(t, 1, resultSet.Len())
+	// Verify that the state contains Target1 and Target2, but not Owner
+	resultSet := resourceData.Get("project_reference").([]interface{})
+	require.Equal(t, 2, len(resultSet))
 
-	list := resultSet.List()
-	obj := list[0].(map[string]interface{})
-	require.Equal(t, permissionsTestTargetID1.String(), obj["project_id"])
+	pids := []string{
+		resultSet[0].(map[string]interface{})["project_id"].(string),
+		resultSet[1].(map[string]interface{})["project_id"].(string),
+	}
+	require.Contains(t, pids, permissionsTestTargetID1.String())
+	require.Contains(t, pids, permissionsTestTargetID2.String())
 }
 
 // Test: Error propagation on Create
@@ -255,8 +254,8 @@ func TestServiceEndpointProjectPermissions_Update_DoesNotSwallowError(t *testing
 	// Update fails
 	buildClient.
 		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, gomock.Any()).
-		Return(nil, errors.New("UpdateServiceEndpoint() Failed")).
+		ShareServiceEndpoint(clients.Ctx, gomock.Any()).
+		Return(errors.New("UpdateServiceEndpoint() Failed")).
 		Times(1)
 
 	diags := r.UpdateContext(clients.Ctx, resourceData, clients)

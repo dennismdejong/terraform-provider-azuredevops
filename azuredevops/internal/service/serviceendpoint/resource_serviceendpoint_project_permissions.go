@@ -43,7 +43,7 @@ func ResourceServiceEndpointProjectPermissions() *schema.Resource {
 				Description:  "The ID of the project where the service endpoint is created (Source Project).",
 			},
 			"project_reference": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -75,7 +75,7 @@ func resourceCreateOrUpdateServiceEndpointProjectPermissions(ctx context.Context
 	if err != nil {
 		return diag.Errorf("invalid service_endpoint_id: %v", err)
 	}
-	targetProjectID, err := uuid.Parse(d.Get("project_id").(string))
+	sourceProjectID, err := uuid.Parse(d.Get("project_id").(string))
 	if err != nil {
 		return diag.Errorf("invalid project_id: %v", err)
 	}
@@ -84,107 +84,92 @@ func resourceCreateOrUpdateServiceEndpointProjectPermissions(ctx context.Context
 		ctx,
 		serviceendpoint.GetServiceEndpointDetailsArgs{
 			EndpointId: &endpointID,
-			Project:    converter.String(targetProjectID.String()),
+			Project:    converter.String(sourceProjectID.String()),
 		},
 	)
 	if err != nil {
 		return diag.Errorf("Error finding service endpoint: %+v", err)
 	}
 
-	oldSet, newSet := d.GetChange("project_reference")
-
-	projectsToRemove := make(map[string]bool)
-	if oldSet != nil {
-		for _, raw := range oldSet.(*schema.Set).List() {
-			obj := raw.(map[string]interface{})
-			pid := obj["project_id"].(string)
-			projectsToRemove[strings.ToLower(pid)] = true
-		}
+	plannedProjectReferences := d.Get("project_reference").([]interface{})
+	plannedProjects := make(map[string]map[string]interface{})
+	for _, raw := range plannedProjectReferences {
+		obj := raw.(map[string]interface{})
+		pid := strings.ToLower(obj["project_id"].(string))
+		plannedProjects[pid] = obj
 	}
 
-	projectsToUpsert := make(map[string]map[string]interface{})
-	if newSet != nil {
-		for _, raw := range newSet.(*schema.Set).List() {
-			obj := raw.(map[string]interface{})
-			pid := obj["project_id"].(string)
-
-			delete(projectsToRemove, strings.ToLower(pid))
-
-			projectsToUpsert[strings.ToLower(pid)] = obj
-		}
-	}
-
-	var newReferences []serviceendpoint.ServiceEndpointProjectReference
-
+	var projectsToRemove []string
 	if serviceEndpoint.ServiceEndpointProjectReferences != nil {
-		for _, existingRef := range *serviceEndpoint.ServiceEndpointProjectReferences {
-			existingPid := strings.ToLower(existingRef.ProjectReference.Id.String())
-
-			if _, shouldRemove := projectsToRemove[existingPid]; shouldRemove {
+		for _, ref := range *serviceEndpoint.ServiceEndpointProjectReferences {
+			pid := strings.ToLower(ref.ProjectReference.Id.String())
+			// Don't remove the source project
+			if pid == strings.ToLower(sourceProjectID.String()) {
 				continue
 			}
-
-			if tfConfig, found := projectsToUpsert[existingPid]; found {
-				name := tfConfig["service_endpoint_name"].(string)
-				desc := tfConfig["description"].(string)
-
-				existingRef.Name = converter.String(name)
-				existingRef.Description = converter.String(desc)
-
-				newReferences = append(newReferences, existingRef)
-
-				delete(projectsToUpsert, existingPid)
-			} else {
-				newReferences = append(newReferences, existingRef)
+			// If it's not in the planned projects, remove it
+			if _, ok := plannedProjects[pid]; !ok {
+				projectsToRemove = append(projectsToRemove, pid)
 			}
 		}
 	}
 
-	for pid, tfConfig := range projectsToUpsert {
-		targetProjectID := uuid.MustParse(pid)
-		name := tfConfig["service_endpoint_name"].(string)
-		desc := tfConfig["description"].(string)
-
-		newReferences = append(newReferences, serviceendpoint.ServiceEndpointProjectReference{
-			ProjectReference: &serviceendpoint.ProjectReference{
-				Id: &targetProjectID,
-			},
-			Name:        converter.String(name),
-			Description: converter.String(desc),
+	// 1. Delete removed project references
+	if len(projectsToRemove) > 0 {
+		err = clients.ServiceEndpointClient.DeleteServiceEndpoint(ctx, serviceendpoint.DeleteServiceEndpointArgs{
+			EndpointId: &endpointID,
+			ProjectIds: &projectsToRemove,
 		})
+		if err != nil {
+			return diag.Errorf("Error removing service endpoint project permissions: %+v", err)
+		}
 	}
 
-	serviceEndpoint.ServiceEndpointProjectReferences = &newReferences
-	_, err = clients.ServiceEndpointClient.UpdateServiceEndpoint(
-		ctx,
-		serviceendpoint.UpdateServiceEndpointArgs{
-			EndpointId: &endpointID,
-			Endpoint:   serviceEndpoint,
-		},
-	)
-	if err != nil {
-		return diag.Errorf("Error updating service endpoint references: %+v", err)
+	// 2. Upsert planned project references
+	if len(plannedProjects) > 0 {
+		var newReferences []serviceendpoint.ServiceEndpointProjectReference
+		for pid, tfConfig := range plannedProjects {
+			targetProjectID := uuid.MustParse(pid)
+			name := tfConfig["service_endpoint_name"].(string)
+			desc := tfConfig["description"].(string)
+
+			newReferences = append(newReferences, serviceendpoint.ServiceEndpointProjectReference{
+				ProjectReference: &serviceendpoint.ProjectReference{
+					Id: &targetProjectID,
+				},
+				Name:        converter.String(name),
+				Description: converter.String(desc),
+			})
+		}
+
+		err = clients.ServiceEndpointClient.ShareServiceEndpoint(ctx, serviceendpoint.ShareServiceEndpointArgs{
+			EndpointId:                &endpointID,
+			EndpointProjectReferences: &newReferences,
+		})
+		if err != nil {
+			return diag.Errorf("Error sharing service endpoint to projects: %+v", err)
+		}
 	}
 
 	d.SetId(endpointID.String())
-	return resourceReadServiceEndpointProjectPermissions(clients.Ctx, d, m)
+	return resourceReadServiceEndpointProjectPermissions(ctx, d, m)
 }
 
 func resourceReadServiceEndpointProjectPermissions(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	clients := m.(*client.AggregatedClient)
 
 	endpointIDStr := d.Get("service_endpoint_id").(string)
-	targetProjectIDStr := d.Get("project_id").(string)
+	sourceProjectIDStr := d.Get("project_id").(string)
 	endpointID, err := uuid.Parse(endpointIDStr)
 	if err != nil {
-		return diag.Errorf("f%s", err)
+		return diag.Errorf("invalid service_endpoint_id: %s", err)
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(
 		ctx,
 		serviceendpoint.GetServiceEndpointDetailsArgs{
 			EndpointId: &endpointID,
-			Project:    converter.String(targetProjectIDStr),
+			Project:    converter.String(sourceProjectIDStr),
 		},
 	)
 	if err != nil {
@@ -195,32 +180,27 @@ func resourceReadServiceEndpointProjectPermissions(ctx context.Context, d *schem
 		return diag.Errorf("Error reading service endpoint: %+v", err)
 	}
 
-	expectedProjects := make(map[string]bool)
-	if set := d.Get("project_reference").(*schema.Set); set != nil {
-		for _, raw := range set.List() {
-			obj := raw.(map[string]interface{})
-			expectedProjects[strings.ToLower(obj["project_id"].(string))] = true
-		}
-	}
-
 	var flattenedRefs []interface{}
 
 	if serviceEndpoint.ServiceEndpointProjectReferences != nil {
 		for _, ref := range *serviceEndpoint.ServiceEndpointProjectReferences {
 			pid := strings.ToLower(ref.ProjectReference.Id.String())
 
-			if _, expected := expectedProjects[pid]; expected {
-				item := map[string]interface{}{
-					"project_id": ref.ProjectReference.Id.String(),
-				}
-				if ref.Name != nil {
-					item["service_endpoint_name"] = *ref.Name
-				}
-				if ref.Description != nil {
-					item["description"] = *ref.Description
-				}
-				flattenedRefs = append(flattenedRefs, item)
+			// Skip the source project
+			if pid == strings.ToLower(sourceProjectIDStr) {
+				continue
 			}
+
+			item := map[string]interface{}{
+				"project_id": ref.ProjectReference.Id.String(),
+			}
+			if ref.Name != nil {
+				item["service_endpoint_name"] = *ref.Name
+			}
+			if ref.Description != nil {
+				item["description"] = *ref.Description
+			}
+			flattenedRefs = append(flattenedRefs, item)
 		}
 	}
 
@@ -232,50 +212,42 @@ func resourceDeleteServiceEndpointProjectPermissions(ctx context.Context, d *sch
 	clients := m.(*client.AggregatedClient)
 
 	endpointID := uuid.MustParse(d.Get("service_endpoint_id").(string))
-	targetProjectIDStr := d.Get("project_id").(string)
+	sourceProjectIDStr := d.Get("project_id").(string)
 
-	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(
-		clients.Ctx,
+	_, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(
+		ctx,
 		serviceendpoint.GetServiceEndpointDetailsArgs{
 			EndpointId: &endpointID,
-			Project:    converter.String(targetProjectIDStr),
+			Project:    converter.String(sourceProjectIDStr),
 		},
 	)
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			return nil
 		}
-		return diag.Errorf("f%s", err)
+		return diag.Errorf("Error reading service endpoint: %+v", err)
 	}
 
-	projectsToDelete := make(map[string]bool)
-	if set := d.Get("project_reference").(*schema.Set); set != nil {
-		for _, raw := range set.List() {
+	var projectsToDelete []string
+	if list := d.Get("project_reference").([]interface{}); list != nil {
+		for _, raw := range list {
 			obj := raw.(map[string]interface{})
-			projectsToDelete[strings.ToLower(obj["project_id"].(string))] = true
-		}
-	}
-
-	var newRefs []serviceendpoint.ServiceEndpointProjectReference
-	if serviceEndpoint.ServiceEndpointProjectReferences != nil {
-		for _, ref := range *serviceEndpoint.ServiceEndpointProjectReferences {
-			pid := strings.ToLower(ref.ProjectReference.Id.String())
-
-			if _, found := projectsToDelete[pid]; !found {
-				newRefs = append(newRefs, ref)
+			pid := obj["project_id"].(string)
+			if strings.ToLower(pid) != strings.ToLower(sourceProjectIDStr) {
+				projectsToDelete = append(projectsToDelete, pid)
 			}
 		}
 	}
 
-	serviceEndpoint.ServiceEndpointProjectReferences = &newRefs
-
-	_, err = clients.ServiceEndpointClient.UpdateServiceEndpoint(
-		ctx,
-		serviceendpoint.UpdateServiceEndpointArgs{
+	if len(projectsToDelete) > 0 {
+		err = clients.ServiceEndpointClient.DeleteServiceEndpoint(ctx, serviceendpoint.DeleteServiceEndpointArgs{
 			EndpointId: &endpointID,
-			Endpoint:   serviceEndpoint,
-		},
-	)
+			ProjectIds: &projectsToDelete,
+		})
+		if err != nil {
+			return diag.Errorf("Error deleting service endpoint project permissions: %+v", err)
+		}
+	}
 
-	return diag.Errorf("f%s", err)
+	return nil
 }

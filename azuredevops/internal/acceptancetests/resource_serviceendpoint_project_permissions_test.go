@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -21,7 +21,7 @@ func TestAccServiceEndpointProjectPermissions_Update(t *testing.T) {
 		Providers:    testutils.GetProviders(),
 		CheckDestroy: testutils.CheckProjectDestroyed,
 		Steps: []resource.TestStep{
-			// Stap 1: Initieel delen met Project 2
+			// Step 1: Initial sharing with Project 2
 			{
 				Config: hclServiceEndpointPermissionsBuilder(projectName1, projectName2, projectName3, serviceEndpointName, `
 				project_reference {
@@ -35,7 +35,7 @@ func TestAccServiceEndpointProjectPermissions_Update(t *testing.T) {
 					resource.TestCheckResourceAttr(tfNode, "project_reference.0.service_endpoint_name", "shared-connection"),
 				),
 			},
-			// Stap 2: Update - Project 3 toevoegen (Upsert logica)
+			// Step 2: Update - add Project 3 (Upsert logic)
 			{
 				Config: hclServiceEndpointPermissionsBuilder(projectName1, projectName2, projectName3, serviceEndpointName, `
 				project_reference {
@@ -53,7 +53,7 @@ func TestAccServiceEndpointProjectPermissions_Update(t *testing.T) {
 					resource.TestCheckResourceAttr(tfNode, "project_reference.#", "2"),
 				),
 			},
-			// Stap 3: Update - Project 2 verwijderen EN alias van Project 3 wijzigen
+			// Step 3: Update - remove Project 2 AND change alias of Project 3
 			{
 				Config: hclServiceEndpointPermissionsBuilder(projectName1, projectName2, projectName3, serviceEndpointName, `
 				project_reference {
