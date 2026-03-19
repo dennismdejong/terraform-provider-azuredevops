@@ -32,11 +32,13 @@ func dataSourceServiceEndpointGenericRead(d *schema.ResourceData, m interface{})
 				auth["scheme"] = *serviceEndpoint.Authorization.Scheme
 			}
 			if serviceEndpoint.Authorization.Parameters != nil {
+				params := make(map[string]interface{})
 				for k, v := range *serviceEndpoint.Authorization.Parameters {
-					auth[k] = v
+					params[k] = v
 				}
+				auth["parameters"] = params
 			}
-			d.Set("authorization", auth)
+			d.Set("authorization", []interface{}{auth})
 		}
 
 		if serviceEndpoint.Data != nil {
@@ -56,6 +58,25 @@ func dataSourceServiceEndpointGenericSchema() map[string]*schema.Schema {
 		Computed: true,
 		Elem: &schema.Schema{
 			Type: schema.TypeString,
+		},
+	}
+	d["authorization"] = &schema.Schema{
+		Type:     schema.TypeList,
+		Computed: true,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"scheme": {
+					Type:     schema.TypeString,
+					Computed: true,
+				},
+				"parameters": {
+					Type:     schema.TypeMap,
+					Computed: true,
+					Elem: &schema.Schema{
+						Type: schema.TypeString,
+					},
+				},
+			},
 		},
 	}
 	return d

@@ -62,8 +62,12 @@ func TestDataEndpointGeneric_Read_TestFindEndpointByName(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, *serviceEndPointWellFormed.Name, resourceData.Get("service_endpoint_name").(string))
 	require.Equal(t, "someValue", resourceData.Get("data").(map[string]interface{})["someKey"])
-	require.Equal(t, "user", resourceData.Get("authorization").(map[string]interface{})["username"])
-	require.Equal(t, "UsernamePassword", resourceData.Get("authorization").(map[string]interface{})["scheme"])
+	authList := resourceData.Get("authorization").([]interface{})
+	require.Len(t, authList, 1)
+	authMap := authList[0].(map[string]interface{})
+	require.Equal(t, "UsernamePassword", authMap["scheme"])
+	params := authMap["parameters"].(map[string]interface{})
+	require.Equal(t, "user", params["username"])
 }
 
 func TestDataEndpointGeneric_Read_TestEmpty(t *testing.T) {
@@ -98,6 +102,10 @@ func TestDataEndpointGeneric_Read_TestEmpty(t *testing.T) {
 
 	require.Equal(t, *serviceEndPointWellFormed.Name, resourceData.Get("service_endpoint_name").(string))
 	require.Equal(t, "someValue", resourceData.Get("data").(map[string]interface{})["someKey"])
-	require.Equal(t, "user", resourceData.Get("authorization").(map[string]interface{})["username"])
-	require.Equal(t, "UsernamePassword", resourceData.Get("authorization").(map[string]interface{})["scheme"])
+	authList := resourceData.Get("authorization").([]interface{})
+	require.Len(t, authList, 1)
+	authMap := authList[0].(map[string]interface{})
+	require.Equal(t, "UsernamePassword", authMap["scheme"])
+	params := authMap["parameters"].(map[string]interface{})
+	require.Equal(t, "user", params["username"])
 }
