@@ -59,7 +59,7 @@ resource "azuredevops_work_team_settings" "example" {
     "friday",
   ]
 
-  "bugs_behavior" = "asRequirements"
+  bugs_behavior = "asRequirements"
 }
 ```
 

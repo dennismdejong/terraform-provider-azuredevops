@@ -47,18 +47,18 @@ resource "azuredevops_project" "test" {
 
 resource "azuredevops_team" "test" {
   project_id = azuredevops_project.test.id
-  name       = "%[1]s]"
+  name       = "%[1]s"
 }
 
 resource "azuredevops_work_team_settings" "example" {
   project_id = azuredevops_project.test.id
   team_id    = azuredevops_team.test.id
-  
+
   backlog_visibilities = [
     "Microsoft.EpicCategory",
   ]
 
-  working_days =  [
+  working_days = [
     "monday",
     "tuesday",
     "wednesday",
@@ -66,7 +66,7 @@ resource "azuredevops_work_team_settings" "example" {
     "friday",
   ]
 
-  "bugs_behavior" = "asRequirements"
+  bugs_behavior = "asRequirements"
 }
 `, projectName, teamName)
 }
