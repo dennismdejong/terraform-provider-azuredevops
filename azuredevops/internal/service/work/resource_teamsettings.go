@@ -79,7 +79,6 @@ func ResourceTeamSettings() *schema.Resource {
 }
 
 func resourceCreateOrUpdateTeamSettings(d *schema.ResourceData, m interface{}) error {
-
 	clients := m.(*client.AggregatedClient)
 	projectID := d.Get("project_id").(string)
 	teamID := d.Get("team_id").(string)
@@ -122,17 +121,17 @@ func resourceReadTeamSettings(d *schema.ResourceData, m interface{}) error {
 	if settings.WorkingDays != nil {
 		days := make([]interface{}, len(*settings.WorkingDays))
 		for i, day := range *settings.WorkingDays {
-			days[i] = string(day)
+			days[i] = day
 		}
 		d.Set("working_days", schema.NewSet(schema.HashString, days))
 	}
 
 	if settings.BacklogIteration != nil && settings.BacklogIteration.Id != nil {
-		d.Set("backlog_iteration_id", (*settings.BacklogIteration.Id).String())
+		d.Set("backlog_iteration_id", settings.BacklogIteration.Id.String())
 	}
 
 	if settings.DefaultIteration != nil && settings.DefaultIteration.Id != nil {
-		d.Set("default_iteration_id", (*settings.DefaultIteration.Id).String())
+		d.Set("default_iteration_id", settings.DefaultIteration.Id.String())
 	}
 	if settings.DefaultIterationMacro != nil {
 		d.Set("default_iteration_macro", *settings.DefaultIterationMacro)
@@ -207,16 +206,20 @@ func expandTeamSettingsPatch(d *schema.ResourceData) work.TeamSettingsPatch {
 	}
 
 	if v, ok := d.GetOk("backlog_iteration_id"); ok {
-		id, _ := uuid.Parse(v.(string))
-		patch.BacklogIteration = &id
+		id, err := uuid.Parse(v.(string))
+		if err == nil {
+			patch.BacklogIteration = &id
+		}
 	}
 
 	if v, ok := d.GetOk("default_iteration_macro"); ok {
 		macro := v.(string)
 		patch.DefaultIterationMacro = &macro
 	} else if v, ok := d.GetOk("default_iteration_id"); ok {
-		id, _ := uuid.Parse(v.(string))
-		patch.DefaultIteration = &id
+		id, err := uuid.Parse(v.(string))
+		if err == nil {
+			patch.DefaultIteration = &id
+		}
 	}
 
 	return patch

@@ -50,7 +50,8 @@ func TestExpandTeamSettingsPatch(t *testing.T) {
 
 	assert.Equal(t, work.BugsBehavior("asTasks"), *patch.BugsBehavior)
 	assert.Equal(t, []string{"monday", "tuesday"}, *patch.WorkingDays)
-	expectedBacklogId, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+	expectedBacklogId, err := uuid.Parse("00000000-0000-0000-0000-000000000001")
+	assert.NoError(t, err)
 	assert.Equal(t, expectedBacklogId, *patch.BacklogIteration)
 	assert.Equal(t, "@CurrentIteration", *patch.DefaultIterationMacro)
 	assert.Nil(t, patch.DefaultIteration)
@@ -59,7 +60,8 @@ func TestExpandTeamSettingsPatch(t *testing.T) {
 		"default_iteration_id": "00000000-0000-0000-0000-000000000002",
 	})
 	patchWithDefaultIterationId := expandTeamSettingsPatch(resourceDataWithDefaultIterationId)
-	expectedDefaultIterationId, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+	expectedDefaultIterationId, err := uuid.Parse("00000000-0000-0000-0000-000000000002")
+	assert.NoError(t, err)
 	assert.Equal(t, expectedDefaultIterationId, *patchWithDefaultIterationId.DefaultIteration)
 	assert.Nil(t, patchWithDefaultIterationId.DefaultIterationMacro)
 }
