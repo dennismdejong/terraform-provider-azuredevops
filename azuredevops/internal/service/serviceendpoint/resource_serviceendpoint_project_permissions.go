@@ -104,7 +104,7 @@ func resourceCreateOrUpdateServiceEndpointProjectPermissions(ctx context.Context
 		for _, ref := range *serviceEndpoint.ServiceEndpointProjectReferences {
 			pid := strings.ToLower(ref.ProjectReference.Id.String())
 			// Don't remove the source project
-			if pid == strings.ToLower(sourceProjectID.String()) {
+			if strings.EqualFold(pid, sourceProjectID.String()) {
 				continue
 			}
 			// If it's not in the planned projects, remove it
@@ -187,7 +187,7 @@ func resourceReadServiceEndpointProjectPermissions(ctx context.Context, d *schem
 			pid := strings.ToLower(ref.ProjectReference.Id.String())
 
 			// Skip the source project
-			if pid == strings.ToLower(sourceProjectIDStr) {
+			if strings.EqualFold(pid, sourceProjectIDStr) {
 				continue
 			}
 
@@ -233,7 +233,7 @@ func resourceDeleteServiceEndpointProjectPermissions(ctx context.Context, d *sch
 		for _, raw := range list {
 			obj := raw.(map[string]interface{})
 			pid := obj["project_id"].(string)
-			if strings.ToLower(pid) != strings.ToLower(sourceProjectIDStr) {
+			if !strings.EqualFold(pid, sourceProjectIDStr) {
 				projectsToDelete = append(projectsToDelete, pid)
 			}
 		}
