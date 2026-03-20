@@ -601,13 +601,6 @@ func flattenGitRepository(d *schema.ResourceData, repository *git.GitRepository)
 			if prop, ok := links["setAutoComplete"]; ok {
 				if val, ok := prop.(bool); ok {
 					setAutoComplete = val
-				} else if val, ok := prop.(map[string]interface{}); ok {
-					// Sometimes links are objects with an "href" or similar,
-					// but according to the release notes it's a property.
-					// We'll have to see how it's actually returned.
-					if href, ok := val["href"]; ok && href != nil {
-						// This is likely not it, as it's a feature toggle.
-					}
 				}
 			}
 			d.Set("set_auto_complete", setAutoComplete)
