@@ -85,7 +85,7 @@ The following arguments are supported:
 
 ---
 
-* `project_reference` - (Optional) One or more `project_reference` blocks as defined below.
+* `project_reference` - (Required) One or more `project_reference` blocks as defined below.
 
 ---
 

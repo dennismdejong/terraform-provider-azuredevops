@@ -44,7 +44,8 @@ func ResourceServiceEndpointProjectPermissions() *schema.Resource {
 			},
 			"project_reference": {
 				Type:     schema.TypeList,
-				Optional: true,
+				Required: true,
+				MinItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"project_id": {
