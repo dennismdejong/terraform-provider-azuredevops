@@ -324,15 +324,6 @@ func doBaseFlattening(d *schema.ResourceData, serviceEndpoint *serviceendpoint.S
 	}
 }
 
-func doBaseFlatteningForDataSource(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
-	doBaseFlattening(d, serviceEndpoint)
-
-	if serviceEndpoint.ServiceEndpointProjectReferences != nil {
-		refs := flattenServiceEndpointProjectReferences(serviceEndpoint.ServiceEndpointProjectReferences)
-		d.Set("service_endpoint_project_references", refs)
-	}
-}
-
 // data resources
 
 func dataSourceGenBaseSchema() map[string]*schema.Schema {
@@ -370,38 +361,6 @@ func dataSourceGenBaseSchema() map[string]*schema.Schema {
 		"description": {
 			Type:     schema.TypeString,
 			Computed: true,
-		},
-		"service_endpoint_project_references": {
-			Type:     schema.TypeList,
-			Computed: true,
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"project_reference": {
-						Type:     schema.TypeList,
-						Computed: true,
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
-								"id": {
-									Type:     schema.TypeString,
-									Computed: true,
-								},
-								"name": {
-									Type:     schema.TypeString,
-									Computed: true,
-								},
-							},
-						},
-					},
-					"name": {
-						Type:     schema.TypeString,
-						Computed: true,
-					},
-					"description": {
-						Type:     schema.TypeString,
-						Computed: true,
-					},
-				},
-			},
 		},
 	}
 }
@@ -504,38 +463,4 @@ func checkServiceConnection(endpoint *serviceendpoint.ServiceEndpoint) error {
 		return fmt.Errorf("Service connection not fully returned, this appears to be a permission issue with PAT/SPN/identity etc.")
 	}
 	return nil
-}
-
-func flattenServiceEndpointProjectReferences(references *[]serviceendpoint.ServiceEndpointProjectReference) []interface{} {
-	if references == nil {
-		return []interface{}{}
-	}
-
-	results := make([]interface{}, 0, len(*references))
-
-	for _, ref := range *references {
-		item := make(map[string]interface{})
-
-		if ref.Name != nil {
-			item["name"] = *ref.Name
-		}
-		if ref.Description != nil {
-			item["description"] = *ref.Description
-		}
-
-		if ref := ref.ProjectReference; ref != nil {
-			pRef := make(map[string]interface{})
-			if id := ref.Id; id != nil {
-				pRef["id"] = id.String()
-			}
-			if name := ref.Name; name != nil {
-				pRef["name"] = *name
-			}
-			item["project_reference"] = []interface{}{pRef}
-		}
-
-		results = append(results, item)
-	}
-
-	return results
 }
